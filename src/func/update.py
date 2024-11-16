@@ -35,6 +35,7 @@ def update_model(
     gate_up_down_weight_weights: Optional[list] = [1.0, 1.0, 1.0],
     tokenizer: Optional[PreTrainedTokenizer] = None,
     eval_dataset: Optional[Dataset] = None,
+    eval_max_length: Optional[int] = 128,
     use_chat_template: bool = False,
     deepcopy_model: bool = False,
 ) -> nn.Module:
@@ -55,6 +56,7 @@ def update_model(
     - gate_up_down_weight_weights: Weights for the gate and up weights. (default: [1.0, 1.0])
     - tokenizer: Tokenizer to use.
     - eval_dataset: Eval dataset to use. Eval dataset must have 'conversations' column if use_chat_template is True.
+    - eval_max_length: Maximum length of the eval dataset. (default: 128)
     - use_chat_template: If True, the chat template will be applied to the model.
     - deepcopy_model: If True, the model will be copied before pruning. (default: False)
 
@@ -97,7 +99,10 @@ def update_model(
         if not use_chat_template:
             tokens = eval_dataset.map(
                 lambda x: tokenizer(
-                    x["text"], return_tensors="pt", max_length=128, truncation=True
+                    x["text"],
+                    return_tensors="pt",
+                    max_length=eval_max_length,
+                    truncation=True,
                 ),
                 remove_columns=[
                     x for x in eval_dataset.column_names if x != "conversations"
@@ -110,7 +115,7 @@ def update_model(
                     tokenize=True,
                     add_generation_prompt=False,
                     return_tensors="pt",
-                    max_length=128,
+                    max_length=eval_max_length,
                     truncation=True,
                     return_dict=True,
                 ),

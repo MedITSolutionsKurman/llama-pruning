@@ -47,8 +47,6 @@ def map_iio(examples: List[dict]) -> List[dict]:
 
     tmp = []
 
-    print(examples.keys())
-
     if "input" not in examples and "instruction" in examples:
         examples["input"] = examples["instruction"]
         examples["instruction"] = None
@@ -101,7 +99,6 @@ def map_iio_steps(examples: List[dict]) -> str:
     examples = literal_eval(examples)
 
     for idx, example in enumerate(examples):
-        print(example)
         if idx == 0:
             output.append(
                 example["step"]

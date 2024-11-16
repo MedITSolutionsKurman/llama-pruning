@@ -89,6 +89,7 @@ It is recommended to store your configuration files in the `configs` directory f
 - `--quiet`: Do not print logs.
 - `--eval_dataset`: Hugging Face dataset to evaluate the model. *WIP*
 - `--eval_dataset_size`: Size of the evaluation dataset. (default: `20`) *WIP*
+- `--eval_max_length`: Maximum length of the evaluation sequence. (default: `128`)
 
 ## AutoML 
 *WIP*

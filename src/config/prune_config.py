@@ -3,6 +3,7 @@ from typing import Optional, List, Union
 from config.prune_grid_search_config import PruneGridSearchConfig
 from config.prune_method import PruneMethod
 from dataset.map import map_iio, map_conversations
+from dataset.prepare import prepare_chat, prepare_iio_chat
 from datasets import load_dataset, Dataset
 
 import logging
@@ -40,6 +41,7 @@ class PruneConfig:
     )
     eval_dataset: Optional[Union[str, Dataset]] = None
     eval_dataset_size: Optional[int] = None
+    eval_max_length: Optional[int] = 128
     grid_search: Optional[PruneGridSearchConfig] = None
 
     def __post_init__(self):
@@ -106,9 +108,6 @@ class PruneConfig:
                 cache_dir=self.cache_dir,
             )
 
-            # Get num of available processors
-            num_proc = os.cpu_count()
-
             if (
                 self.apply_chat_template
                 and "conversations" not in self.eval_dataset.column_names
@@ -121,39 +120,13 @@ class PruneConfig:
                         "eval_dataset must have 'conversations' or 'input' and 'output' columns if use_chat_template is True."
                     )
                 else:
-                    self.eval_dataset = (
-                        self.eval_dataset.map(
-                            lambda x: {"conversations": map_iio(x)},
-                            num_proc=num_proc,
-                            remove_columns=[
-                                x
-                                for x in self.eval_dataset.column_names
-                                if x not in ["conversations"]
-                            ],
-                        )
-                        .filter(lambda x: x["conversations"] is not None)
-                        .map(
-                            lambda x: {
-                                "conversations": map_conversations(x["conversations"])
-                            },
-                            num_proc=num_proc,
-                        )
-                        .filter(lambda x: x["conversations"] is not None)
-                    )
+                    self.eval_dataset = prepare_iio_chat(self.eval_dataset)
 
             elif (
                 self.apply_chat_template
                 and "conversations" in self.eval_dataset.column_names
             ):
-                self.eval_dataset = self.eval_dataset.map(
-                    lambda x: {"conversations": map_conversations(x["conversations"])},
-                    remove_columns=[
-                        x
-                        for x in self.eval_dataset.column_names
-                        if x not in ["conversations"]
-                    ],
-                    num_proc=num_proc,
-                ).filter(lambda x: x["conversations"] is not None)
+                self.eval_dataset = prepare_chat(self.eval_dataset)
 
             if (
                 not self.apply_chat_template

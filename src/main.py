@@ -148,6 +148,13 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--eval_max_length",
+        type=int,
+        default=128,
+        help="Maximum length of evaluation sequences.",
+    )
+
+    parser.add_argument(
         "--quiet",
         action="store_true",
         default=False,
@@ -201,6 +208,7 @@ if __name__ == "__main__":
             gate_up_down_weight_weights=args.gate_up_down_weight_weights,
             eval_dataset=args.eval_dataset,
             eval_dataset_size=args.eval_dataset_size,
+            eval_max_length=args.eval_max_length,
             quiet=args.quiet,
             log_dir=args.log_dir,
             stop_logging=args.stop_logging,
@@ -208,6 +216,8 @@ if __name__ == "__main__":
     else:
         # Load the configuration from the file.
         config = load_config(args.config)
+
+    os.makedirs(config.log_dir, exist_ok=True)
 
     logger.handlers = []
 
@@ -232,10 +242,12 @@ if __name__ == "__main__":
     logger.addHandler(console_handler)
 
     dtype = getattr(torch, config.dtype)
-    device = "cuda" if config.device and torch.cuda.is_available() else "cpu"
+
+    if config.device == "cuda" and not torch.cuda.is_available():
+        config.device = "cpu"
 
     logger.debug(f"{config}")
-    logger.info(f"Using device: {device}")
+    logger.info(f"Using device: {config.device}")
 
     # Load the model and tokenizer.
     model, tokenizer = load_model(
@@ -252,7 +264,7 @@ if __name__ == "__main__":
         model=model,
         pruned_model=None,
         tokenizer=tokenizer,
-        device=device,
+        device=config.device,
         apply_chat_template=config.apply_chat_template,
         max_new_tokens=config.max_new_tokens,
         quiet=config.quiet,
@@ -280,12 +292,9 @@ if __name__ == "__main__":
         use_full_precision=config.use_full_precision,
         gate_up_down_weight_weights=config.gate_up_down_weight_weights,
         deepcopy_model=config.grid_search is not None,
-        tokenizer=(
-            tokenizer
-            if config.prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS
-            else None
-        ),
+        tokenizer=tokenizer,
         eval_dataset=config.eval_dataset,
+        eval_max_length=config.eval_max_length,
         use_chat_template=config.apply_chat_template,
     )
 

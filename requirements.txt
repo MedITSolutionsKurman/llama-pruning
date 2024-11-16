@@ -6,4 +6,4 @@ numpy==1.26.0
 protobuf==5.28.3
 pyyaml==6.0.2
 datasets==3.1.0
-bitsandbytes==0.44.1
+bitsandbytes==0.42.0

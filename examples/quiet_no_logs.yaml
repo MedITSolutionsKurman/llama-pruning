@@ -5,7 +5,7 @@ cache_dir: null
 device: "cuda"
 output: "results/pruned_model"
 apply_chat_template: true
-prompt: "What is the capital of France?"
+prompt: "What is the capital of the United States?"
 max_new_tokens: 50
 target_size: null
 log_dir: "logs"

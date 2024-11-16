@@ -429,8 +429,8 @@ def get_adjusted_weight_importance_2_with_gradients(
         activations, gradients, device=weight.device
     )
 
-    activation_importance = activation_importance.mean(dim=0)  # [intermediate_dim]
-    grad_importance = grad_importance.mean(dim=0)  # [intermediate_dim]
+    activation_importance = activation_importance.sum(dim=0)  # [intermediate_dim]
+    grad_importance = grad_importance.sum(dim=0)  # [intermediate_dim]
 
     # Normalize importance scores
     activation_importance = activation_importance / (
