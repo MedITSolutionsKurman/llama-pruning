@@ -280,7 +280,11 @@ if __name__ == "__main__":
         use_full_precision=config.use_full_precision,
         gate_up_down_weight_weights=config.gate_up_down_weight_weights,
         deepcopy_model=config.grid_search is not None,
-        tokenizer=tokenizer if config.prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS else None,
+        tokenizer=(
+            tokenizer
+            if config.prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS
+            else None
+        ),
         eval_dataset=config.eval_dataset,
         use_chat_template=config.apply_chat_template,
     )

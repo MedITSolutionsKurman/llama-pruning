@@ -3,11 +3,17 @@ from torch import nn
 from typing import Optional
 from tqdm import tqdm
 
-from src.func.importance import get_importance, get_adjusted_importance, get_adjusted_importance_2, get_adjusted_importance_2_with_gradients
+from src.func.importance import (
+    get_importance,
+    get_adjusted_importance,
+    get_adjusted_importance_2,
+    get_adjusted_importance_2_with_gradients,
+)
 from src.func.normalize import normalize_weight
 from src.config.prune_method import PruneMethod
 
 # Methods to prune the model using Pere Martra's method with Mariusz Kurman's modification.
+
 
 # Prunes a specific percentatge of neurons from the MLP (feed forward layers).
 # Note: This method is copied from the source given below:
@@ -63,16 +69,38 @@ def prune_neuron_pairs(
     # are considered more important and less likely to be pruned.
 
     if prune_method == PruneMethod.MK_PRUNE:
-        importance_scores = get_importance(gate_weight, up_weight, down_weight.t().contiguous(), weights=gate_up_down_t_weight_weights)
+        importance_scores = get_importance(
+            gate_weight,
+            up_weight,
+            down_weight.t().contiguous(),
+            weights=gate_up_down_t_weight_weights,
+        )
     elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED:
-        importance_scores = get_adjusted_importance(gate_weight, up_weight, down_weight.t().contiguous(), weights=gate_up_down_t_weight_weights)
+        importance_scores = get_adjusted_importance(
+            gate_weight,
+            up_weight,
+            down_weight.t().contiguous(),
+            weights=gate_up_down_t_weight_weights,
+        )
     elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2:
-        importance_scores = get_adjusted_importance_2(gate_weight, up_weight, down_weight.t().contiguous(), weights=gate_up_down_t_weight_weights)
+        importance_scores = get_adjusted_importance_2(
+            gate_weight,
+            up_weight,
+            down_weight.t().contiguous(),
+            weights=gate_up_down_t_weight_weights,
+        )
     elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS:
-        importance_scores = get_adjusted_importance_2_with_gradients(gate_weight, up_weight, down_weight.contiguous(), weights=gate_up_down_t_weight_weights, activations=activations, gradients=gradients)
+        importance_scores = get_adjusted_importance_2_with_gradients(
+            gate_weight,
+            up_weight,
+            down_weight.contiguous(),
+            weights=gate_up_down_t_weight_weights,
+            activations=activations,
+            gradients=gradients,
+        )
     else:
         raise ValueError(f"Unknown prune method: {prune_method}")
-    
+
     torch.cuda.empty_cache()
 
     # Store the original number of neurons in the intermediate layer.

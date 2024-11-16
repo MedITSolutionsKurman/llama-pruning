@@ -81,13 +81,13 @@ def update_model(
     elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS:
         if tokenizer is None:
             raise ValueError("Tokenizer is required for this method.")
-    
+
         if eval_dataset is None:
             raise ValueError("Eval dataset is required for this method.")
-        
-        if 'conversations' not in eval_dataset.column_names:
+
+        if "conversations" not in eval_dataset.column_names:
             raise ValueError("Eval dataset must have 'conversations' column.")
-        
+
         hooks = ActivationGradientHooks()
         hooks.register_hooks(model)
 
@@ -95,9 +95,29 @@ def update_model(
 
         # Tokenize eval dataset
         if not use_chat_template:
-            tokens = eval_dataset.map(lambda x: tokenizer(x["text"], return_tensors="pt", max_length=128, truncation=True), remove_columns=[x for x in eval_dataset.column_names if x != 'conversations'])
+            tokens = eval_dataset.map(
+                lambda x: tokenizer(
+                    x["text"], return_tensors="pt", max_length=128, truncation=True
+                ),
+                remove_columns=[
+                    x for x in eval_dataset.column_names if x != "conversations"
+                ],
+            )
         else:
-            tokens = eval_dataset.map(lambda x: tokenizer.apply_chat_template(x['conversations'], tokenize=True, add_generation_prompt=False, return_tensors="pt", max_length=128, truncation=True, return_dict=True), remove_columns=[x for x in eval_dataset.column_names if x != 'conversations'])
+            tokens = eval_dataset.map(
+                lambda x: tokenizer.apply_chat_template(
+                    x["conversations"],
+                    tokenize=True,
+                    add_generation_prompt=False,
+                    return_tensors="pt",
+                    max_length=128,
+                    truncation=True,
+                    return_dict=True,
+                ),
+                remove_columns=[
+                    x for x in eval_dataset.column_names if x != "conversations"
+                ],
+            )
 
         logger.info("Calculating activations and gradients...")
 
@@ -106,22 +126,34 @@ def update_model(
 
         # Rest of your training loop remains the same
         for idx in tqdm(range(len(tokens))):
-            input_ids = torch.tensor(tokens[idx]['input_ids']).to(device)
-            attention_mask = torch.tensor(tokens[idx]['attention_mask']).to(device)
-            
+            input_ids = torch.tensor(tokens[idx]["input_ids"]).to(device)
+            attention_mask = torch.tensor(tokens[idx]["attention_mask"]).to(device)
+
             if device == "cuda":
-                with torch.amp.autocast(device_type=device, dtype=model.dtype):  # Enable automatic mixed precision
-                    outputs = model(input_ids, attention_mask=attention_mask, labels=input_ids, return_dict=True)
+                with torch.amp.autocast(
+                    device_type=device, dtype=model.dtype
+                ):  # Enable automatic mixed precision
+                    outputs = model(
+                        input_ids,
+                        attention_mask=attention_mask,
+                        labels=input_ids,
+                        return_dict=True,
+                    )
                     loss = outputs.loss
             else:
-                outputs = model(input_ids, attention_mask=attention_mask, labels=input_ids, return_dict=True)
+                outputs = model(
+                    input_ids,
+                    attention_mask=attention_mask,
+                    labels=input_ids,
+                    return_dict=True,
+                )
                 loss = outputs.loss
-            
+
             loss.backward()
             optimizer.zero_grad()
 
-            input_ids = input_ids.detach().to('cpu')
-            attention_mask = attention_mask.detach().to('cpu')
+            input_ids = input_ids.detach().to("cpu")
+            attention_mask = attention_mask.detach().to("cpu")
 
             torch.cuda.empty_cache()
         pass
@@ -155,8 +187,16 @@ def update_model(
             target_size=target_size,
             use_full_precision=use_full_precision,
             gate_up_down_t_weight_weights=gate_up_down_weight_weights,
-            activations=activations if prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS else None,
-            gradients=gradients if prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS else None,
+            activations=(
+                activations
+                if prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS
+                else None
+            ),
+            gradients=(
+                gradients
+                if prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS
+                else None
+            ),
         )
 
         if use_layer_norm_tweaks:

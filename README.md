@@ -71,7 +71,12 @@ It is recommended to store your configuration files in the `configs` directory f
 - `--prompt`: Prompt to generate the output (default: `What is the capital of France?`).
 - `--max_new_tokens`: Maximum number of tokens to generate (default: `50`).
 - `--target_size`: Target size for the MLPs intermediate layer. (`prune_percent` will be ignored).
-- `--prune_method`: Method to use for pruning. Currently, only "mk_prune" (alias: "mk") and "mk_prune_adjusted" (alias: "mka") are supported. (default: `mk_prune`)
+- `--prune_method`: Method to use for pruning. Currently, the following methods are supported:
+  - "mk_prune" (alias: "mk")
+  - "mk_prune_adjusted" (alias: "mka")
+  - "mk_prune_adjusted_2" (alias: "mka2")
+  - "mk_prune_adjusted_2_with_gradients" (alias: "mka2g") (requires eval_dataset to compute gradients)
+  (default: `mk_prune`)
 - `--use_normalized_weights`: Use normalized weights to calculate the final weights. (default: `False`)
 - `--use_layer_norm_tweaks`: Apply layer normalization changes to account for the impact of pruned neurons. (default: `False`)
 - `--layer_norm_scale`: Layer normalization scale. Only used if use_layer_norm_tweaks is True. (default: `4.0`)
@@ -83,7 +88,7 @@ It is recommended to store your configuration files in the `configs` directory f
 - `--print_summary`: Print the pruned model summary. (default: `False`)
 - `--quiet`: Do not print logs.
 - `--eval_dataset`: Hugging Face dataset to evaluate the model. *WIP*
-- `--eval_dataset_size`: Size of the evaluation dataset. (default: 20) *WIP*
+- `--eval_dataset_size`: Size of the evaluation dataset. (default: `20`) *WIP*
 
 ## AutoML 
 *WIP*
@@ -105,7 +110,7 @@ prune_grid:
   use_layer_norm_tweaks_list: [true, false]
   layer_norm_scale_list: [2.0, 4.0]
   target_size_list: [null, 512]
-  gate_up_down_weight_weights_list: [[1.0, 1.0], [0.5, 0.5]]
+  gate_up_down_weight_weights_list: [[1.0, 1.0, 1.0], [0.5, 0.5, 0.5]]
 ```
 
 ### Running the Grid Search
