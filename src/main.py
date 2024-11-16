@@ -16,6 +16,7 @@ from src.eval.simple import SimpleEvaluator
 from argparse import ArgumentParser
 from logging import getLogger
 from datetime import datetime
+from src.config.prune_method import PruneMethod
 
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s | %(name)s | %(levelname)s -> %(message)s"
@@ -93,7 +94,7 @@ if __name__ == "__main__":
         "--prune_method",
         type=str,
         default="mk_prune",
-        help='Method to use for pruning. Currently, only "mk_prune" (alias: "mk") and "mk_prune_adjusted" (alias: "mka") are supported. (default: mk_prune)',
+        help='Method to use for pruning. Currently, only "mk_prune" (alias: "mk"), "mk_prune_adjusted" (alias: "mka"), "mk_prune_adjusted_2" (alias: "mka2") and "mk_prune_adjusted_2_with_gradients" (alias: "mka2g") are supported. (default: mk_prune)',
     )
 
     parser.add_argument(
@@ -125,11 +126,11 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "--gate_up_weight_weights",
+        "--gate_up_down_weight_weights",
         type=float,
         nargs="+",
-        default=[1.0, 1.0],
-        help="Weights for the gate and up weights. (default: [1.0, 1.0])",
+        default=[1.0, 1.0, 1.0],
+        help="Weights for the gate, up and down weights. (default: [1.0, 1.0, 1.0])",
     )
 
     parser.add_argument(
@@ -167,6 +168,13 @@ if __name__ == "__main__":
         help="Stop logging to the file.",
     )
 
+    parser.add_argument(
+        "--use_full_precision",
+        action="store_true",
+        default=False,
+        help="Use full precision for calculations.",
+    )
+
     args = parser.parse_args()
 
     # Load the configuration.
@@ -189,7 +197,8 @@ if __name__ == "__main__":
             print_summary=args.print_summary,
             cache_dir=args.cache_dir,
             target_size=args.target_size,
-            gate_up_weight_weights=args.gate_up_weight_weights,
+            use_full_precision=args.use_full_precision,
+            gate_up_down_weight_weights=args.gate_up_down_weight_weights,
             eval_dataset=args.eval_dataset,
             eval_dataset_size=args.eval_dataset_size,
             quiet=args.quiet,
@@ -238,18 +247,18 @@ if __name__ == "__main__":
 
     simple_evaluator = None
 
-    if config.eval_dataset is None:
-        simple_evaluator = SimpleEvaluator(
-            model=model,
-            pruned_model=None,
-            tokenizer=tokenizer,
-            device=device,
-            apply_chat_template=config.apply_chat_template,
-            max_new_tokens=config.max_new_tokens,
-            quiet=config.quiet,
-        )
+    # if config.eval_dataset is None:
+    simple_evaluator = SimpleEvaluator(
+        model=model,
+        pruned_model=None,
+        tokenizer=tokenizer,
+        device=device,
+        apply_chat_template=config.apply_chat_template,
+        max_new_tokens=config.max_new_tokens,
+        quiet=config.quiet,
+    )
 
-        simple_evaluator.generate(config.prompt)
+    simple_evaluator.generate(config.prompt)
 
     parameters_before = count_parameters(model)
 
@@ -268,8 +277,12 @@ if __name__ == "__main__":
         layer_norm_scale=config.layer_norm_scale,
         device=config.device,
         target_size=config.target_size,
-        gate_up_weight_weights=config.gate_up_weight_weights,
-        deepcopy_model=config.eval_dataset is not None,
+        use_full_precision=config.use_full_precision,
+        gate_up_down_weight_weights=config.gate_up_down_weight_weights,
+        deepcopy_model=config.grid_search is not None,
+        tokenizer=tokenizer if config.prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS else None,
+        eval_dataset=config.eval_dataset,
+        use_chat_template=config.apply_chat_template,
     )
 
     parameters_after = count_parameters(pruned_model)
@@ -279,10 +292,10 @@ if __name__ == "__main__":
         f"Model pruned successfully. Parameters before: {parameters_before}, Parameters after: {parameters_after}, Reduction: {reduction:.2f}%."
     )
 
-    if config.eval_dataset is None:
-        simple_evaluator.pruned_model = pruned_model
-        simple_evaluator.generate(config.prompt, is_pruned=True)
-        simple_evaluator.evaluate()
+    # if config.eval_dataset is None:
+    simple_evaluator.pruned_model = pruned_model
+    simple_evaluator.generate(config.prompt, is_pruned=True)
+    simple_evaluator.evaluate()
 
     if config.print_summary:
         logger.info(f"Model summary after pruning:\n{pruned_model}")

@@ -13,8 +13,8 @@ class PruneGridSearchConfig:
     use_layer_norm_tweaks_list: List[bool] = field(default_factory=lambda: [False])
     layer_norm_scale_list: List[float] = field(default_factory=lambda: [4.0])
     target_size_list: List[Optional[int]] = field(default_factory=lambda: [None])
-    gate_up_weight_weights_list: List[List[float]] = field(
-        default_factory=lambda: [[1.0, 1.0]]
+    gate_up_down_weight_weights_list: List[List[float]] = field(
+        default_factory=lambda: [[1.0, 1.0, 1.0]]
     )
 
     def __post_init__(self):
@@ -41,7 +41,7 @@ class PruneGridSearchConfig:
         ), "Target size must be None or a positive integer"
         assert all(
             all(0.0 <= w <= 1.0 for w in weights)
-            for weights in self.gate_up_weight_weights_list
+            for weights in self.gate_up_down_weight_weights_list
         ), "Gate up weight weights must be between 0 and 1"
 
     @classmethod
@@ -53,5 +53,5 @@ class PruneGridSearchConfig:
             self.use_layer_norm_tweaks_list,
             self.layer_norm_scale_list,
             self.target_size_list,
-            self.gate_up_weight_weights_list,
+            self.gate_up_down_weight_weights_list,
         )

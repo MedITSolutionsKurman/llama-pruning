@@ -62,11 +62,13 @@ def get_output(
         eos_token_id=tokenizer.eos_token_id,
         do_sample=False,
         no_repeat_ngram_size=None,
+        output_hidden_states=True,
+        return_dict_in_generate=True,
     )
 
     with torch.no_grad():
         logits = model(**inputs).logits.cpu()
-    generated = tokenizer.decode(outputs[0], skip_special_tokens=False)
+    generated = tokenizer.decode(outputs['sequences'][0], skip_special_tokens=False)
 
     # Ensure the logger has a FileHandler
     file_handler = None
@@ -81,4 +83,50 @@ def get_output(
 
     print()
 
-    return generated, logits
+    hidden_states = outputs['hidden_states']
+    
+    stacked_hidden_states = stack_hidden_states(hidden_states)
+    
+    return generated, logits, stacked_hidden_states
+
+def stack_hidden_states(hidden_states: List[torch.Tensor]) -> torch.Tensor:
+    """
+    Stack hidden states tensors with different sequence lengths by padding shorter sequences.
+    
+    Args:
+        hidden_states: List of hidden state tensors
+    
+    Returns:
+        torch.Tensor: Stacked hidden states with consistent sequence length
+    """
+
+    if hidden_states and isinstance(hidden_states[0], tuple):
+        hidden_states = [hs[0] for hs in hidden_states]
+
+    # Debug logging
+    logger.debug("Hidden states shapes before stacking:")
+    for i, hs in enumerate(hidden_states):
+        logger.debug(f"Layer {i}: {hs.shape}")
+    
+    # Find the maximum sequence length
+    max_seq_len = max(hs.shape[1] for hs in hidden_states)
+    
+    # Pad tensors to match the maximum sequence length
+    padded_hidden_states = []
+    for hs in hidden_states:
+        if hs.shape[1] < max_seq_len:
+            padding = torch.zeros(
+                (hs.shape[0], max_seq_len - hs.shape[1], hs.shape[2]),
+                dtype=hs.dtype,
+                device=hs.device
+            )
+            hs = torch.cat([hs, padding], dim=1)
+        padded_hidden_states.append(hs)
+    
+    try:
+        stacked_hidden_states = torch.stack(padded_hidden_states, dim=0)
+        logger.debug(f"Successfully stacked hidden states with shape: {stacked_hidden_states.shape}")
+        return stacked_hidden_states
+    except RuntimeError as e:
+        logger.error(f"Failed to stack hidden states: {e}")
+        raise

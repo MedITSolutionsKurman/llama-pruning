@@ -1,12 +1,19 @@
 import torch
 import torch.nn as nn
+import bitsandbytes as bnb
+
 from typing import Optional
 from tqdm import tqdm
 from logging import getLogger
 
 from copy import deepcopy
 
+from transformers import PreTrainedTokenizer, BitsAndBytesConfig
+
 from src.method.mk_prune import prune_neuron_pairs
+from src.model.activation_hook import ActivationGradientHooks
+from config.prune_method import PruneMethod
+from datasets import Dataset
 
 logger = getLogger()
 
@@ -24,7 +31,11 @@ def update_model(
     layer_norm_scale: Optional[float] = 4.0,
     device: Optional[str] = "cuda",
     target_size: Optional[int] = None,
-    gate_up_weight_weights: Optional[list] = [1.0, 1.0],
+    use_full_precision: bool = False,
+    gate_up_down_weight_weights: Optional[list] = [1.0, 1.0, 1.0],
+    tokenizer: Optional[PreTrainedTokenizer] = None,
+    eval_dataset: Optional[Dataset] = None,
+    use_chat_template: bool = False,
     deepcopy_model: bool = False,
 ) -> nn.Module:
     """
@@ -40,7 +51,11 @@ def update_model(
     - layer_norm_scale: Layer normalization scale. Only used if use_layer_norm_tweaks is True. (default: 4.0)
     - device: Device to use.
     - target_size: Target size for the intermediate layer. (prune_percent will be ignored)
-    - gate_up_weight_weights: Weights for the gate and up weights. (default: [1.0, 1.0])
+    - use_full_precision: If True, the model will be pruned using full precision.
+    - gate_up_down_weight_weights: Weights for the gate and up weights. (default: [1.0, 1.0])
+    - tokenizer: Tokenizer to use.
+    - eval_dataset: Eval dataset to use. Eval dataset must have 'conversations' column if use_chat_template is True.
+    - use_chat_template: If True, the chat template will be applied to the model.
     - deepcopy_model: If True, the model will be copied before pruning. (default: False)
 
     Returns:
@@ -54,8 +69,64 @@ def update_model(
         f"layer norm tweaks: {use_layer_norm_tweaks}, "
         f"layer norm scale: {layer_norm_scale} "
         f"target size: {target_size}, "
-        f"gate up weight weights: {gate_up_weight_weights}\n"
+        f"gate up weight weights: {gate_up_down_weight_weights}\n"
     )
+
+    if prune_method == PruneMethod.MK_PRUNE:
+        pass
+    elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED:
+        pass
+    elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2:
+        pass
+    elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS:
+        if tokenizer is None:
+            raise ValueError("Tokenizer is required for this method.")
+    
+        if eval_dataset is None:
+            raise ValueError("Eval dataset is required for this method.")
+        
+        if 'conversations' not in eval_dataset.column_names:
+            raise ValueError("Eval dataset must have 'conversations' column.")
+        
+        hooks = ActivationGradientHooks()
+        hooks.register_hooks(model)
+
+        logger.info("Tokenizing eval dataset...")
+
+        # Tokenize eval dataset
+        if not use_chat_template:
+            tokens = eval_dataset.map(lambda x: tokenizer(x["text"], return_tensors="pt", max_length=128, truncation=True), remove_columns=[x for x in eval_dataset.column_names if x != 'conversations'])
+        else:
+            tokens = eval_dataset.map(lambda x: tokenizer.apply_chat_template(x['conversations'], tokenize=True, add_generation_prompt=False, return_tensors="pt", max_length=128, truncation=True, return_dict=True), remove_columns=[x for x in eval_dataset.column_names if x != 'conversations'])
+
+        logger.info("Calculating activations and gradients...")
+
+        # Use bitsandbytes optimizer
+        optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=1e-4)
+
+        # Rest of your training loop remains the same
+        for idx in tqdm(range(len(tokens))):
+            input_ids = torch.tensor(tokens[idx]['input_ids']).to(device)
+            attention_mask = torch.tensor(tokens[idx]['attention_mask']).to(device)
+            
+            if device == "cuda":
+                with torch.amp.autocast(device_type=device, dtype=model.dtype):  # Enable automatic mixed precision
+                    outputs = model(input_ids, attention_mask=attention_mask, labels=input_ids, return_dict=True)
+                    loss = outputs.loss
+            else:
+                outputs = model(input_ids, attention_mask=attention_mask, labels=input_ids, return_dict=True)
+                loss = outputs.loss
+            
+            loss.backward()
+            optimizer.zero_grad()
+
+            input_ids = input_ids.detach().to('cpu')
+            attention_mask = attention_mask.detach().to('cpu')
+
+            torch.cuda.empty_cache()
+        pass
+    else:
+        raise ValueError(f"Unknown method: {prune_method}")
 
     if deepcopy_model:
         model = deepcopy(model)
@@ -69,12 +140,10 @@ def update_model(
         # by accesing layer.mlp.
         mlp = layer.mlp
 
-        if prune_method == "mk_prune":
-            pass
-        elif prune_method == "mk_prune_adjusted":
-            pass
-        else:
-            raise ValueError(f"Unknown method: {prune_method}")
+        if prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS:
+            # Get the activations of the layer.
+            name = f"layer_{idx}"
+            activations, gradients = hooks.get_layer_statistics(name)
 
         # Call the prune_neiron_pairs with the layers and receiving the pruned.
         new_gate_proj, new_up_proj, new_down_proj, new_size = prune_neuron_pairs(
@@ -84,7 +153,10 @@ def update_model(
             use_normalized_weights=use_normalized_weights,
             device=device,
             target_size=target_size,
-            gate_up_weight_weights=gate_up_weight_weights,
+            use_full_precision=use_full_precision,
+            gate_up_down_t_weight_weights=gate_up_down_weight_weights,
+            activations=activations if prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS else None,
+            gradients=gradients if prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS else None,
         )
 
         if use_layer_norm_tweaks:
@@ -126,6 +198,10 @@ def update_model(
             + (1.0 - torch.abs(last_layer_pruned_sum / last_layer_original_sum))
             / layer_norm_scale
         )
+
+    if prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS:
+        hooks.remove_hooks()
+        torch.cuda.empty_cache()
 
     # Update the model config file.
     model.config.intermediate_size = new_intermediate_size

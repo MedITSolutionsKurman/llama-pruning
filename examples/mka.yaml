@@ -14,7 +14,8 @@ prune_method: "mka"
 use_normalized_weights: false
 use_layer_norm_tweaks: true
 layer_norm_scale: 2.0
-gate_up_weight_weights: [0.3, 0.7]
+gate_up_down_weight_weights: [0.3, 0.5, 0.2]
+use_full_precision: false
 print_summary: false
 quiet: false
 stop_logging: false
