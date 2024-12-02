@@ -95,6 +95,14 @@ class SimpleEvaluator:
 
         logger.info(f"\n\nKL divergence: {diff:.2f}\n")
 
+        # Calculate token accuracy
+        original_preds = self.original_logits.argmax(dim=-1)
+        pruned_preds = self.pruned_logits.argmax(dim=-1)
+
+        original_acc = (original_preds == pruned_preds).float().mean().item()
+
+        logger.info(f"\n\nToken accuracy: {original_acc:.2f}\n")
+
         original_max = self.original_logits.max().item()
         pruned_max = self.pruned_logits.max().item()
 

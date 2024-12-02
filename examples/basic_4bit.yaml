@@ -10,7 +10,7 @@ max_new_tokens: 50
 target_size: null
 log_dir: "logs"
 test_only: false
-prune_method: "mka2g"
+prune_method: "mk_prune"
 use_normalized_weights: false
 use_layer_norm_tweaks: false
 layer_norm_scale: 4.0
@@ -19,7 +19,5 @@ use_full_precision: false
 print_summary: false
 quiet: false
 stop_logging: false
-train_dataset: WizardLMTeam/WizardLM_evol_instruct_70k
-train_dataset_size: 50
-train_max_length: 256
-train_batch_size: 4
+load_in_4bit: true
+load_in_8bit: false

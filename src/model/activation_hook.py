@@ -12,32 +12,33 @@ class ActivationGradientHooks:
 
     def hook_fn(self, name):
         def hook(module, input, output):
-            if name not in self.activations:
-                self.activations[name] = []
-            if len(self.activations[name]) >= self.max_stored:
-                self.activations[name].pop(0)
-
-            # Get activations from gate_proj output (should be before activation)
             if isinstance(output, tuple):
                 output = output[0]
+            if name not in self.activations:
+                self.activations[name] = torch.zeros(output.shape[1:]).detach().cpu().float().numpy()
+            # if len(self.activations[name]) >= self.max_stored:
+            #     self.activations[name].pop(0)
+
+            # Get activations from gate_proj output (should be before activation)
 
             # Store the full tensor shape
-            self.activations[name].append(output.detach())
+            self.activations[name] += output.detach().mean(dim=0).cpu().float().numpy()
 
         return hook
 
     def backward_hook_fn(self, name):
         def hook(module, grad_input, grad_output):
-            if name not in self.gradients:
-                self.gradients[name] = []
-            if len(self.gradients[name]) >= self.max_stored:
-                self.gradients[name].pop(0)
-
-            # Get gradient of gate_proj output
             grad = grad_output[0] if isinstance(grad_output, tuple) else grad_output
 
+            if name not in self.gradients:
+                self.gradients[name] = torch.zeros(grad.shape[1:]).detach().cpu().float().numpy()
+            # if len(self.gradients[name]) >= self.max_stored:
+            #     self.gradients[name].pop(0)
+
+            # Get gradient of gate_proj output
+
             # Store the full tensor shape
-            self.gradients[name].append(grad.detach())
+            self.gradients[name] += grad.detach().mean(dim=0).cpu().float().numpy()
 
         return hook
 
@@ -47,10 +48,31 @@ class ActivationGradientHooks:
             name = f"layer_{i}"
             # Register hook on gate_proj specifically
             handle_forward = layer.mlp.gate_proj.register_forward_hook(
-                self.hook_fn(name)
+                self.hook_fn(name + '.gate_proj')
             )
             handle_backward = layer.mlp.gate_proj.register_full_backward_hook(
-                self.backward_hook_fn(name)
+                self.backward_hook_fn(name + '.gate_proj')
+            )
+            self.handles.append(handle_forward)
+            self.handles.append(handle_backward)
+
+            # Register hook on up_proj specifically
+            handle_forward = layer.mlp.up_proj.register_forward_hook(
+                self.hook_fn(name + '.up_proj')
+            )
+            handle_backward = layer.mlp.up_proj.register_full_backward_hook(
+                self.backward_hook_fn(name + '.up_proj')
+            )
+
+            self.handles.append(handle_forward)
+            self.handles.append(handle_backward)
+
+            # Register hook on down_proj specifically
+            handle_forward = layer.mlp.down_proj.register_forward_hook(
+                self.hook_fn(name + '.down_proj')
+            )
+            handle_backward = layer.mlp.down_proj.register_full_backward_hook(
+                self.backward_hook_fn(name + '.down_proj')
             )
             self.handles.append(handle_forward)
             self.handles.append(handle_backward)
@@ -60,21 +82,13 @@ class ActivationGradientHooks:
     ) -> tuple[List[torch.Tensor], List[torch.Tensor]]:
         """Get activation and gradient statistics for a specific layer."""
         return (
-            self.activations.get(layer_name, []),
-            self.gradients.get(layer_name, []),
+            [self.activations.get(layer_name + x, torch.zeros(1)) for x in ['.gate_proj', '.up_proj', '.down_proj']],
+            [self.gradients.get(layer_name + x, torch.zeros(1)) for x in ['.gate_proj', '.up_proj', '.down_proj']],
         )
 
     def remove_hooks(self):
         """Remove all hooks and clear stored activations/gradients."""
         """Before removing the hooks, move them to CPU to avoid CUDA errors."""
-
-        # Move activations to CPU
-        for layer in self.activations:
-            self.activations[layer] = [act.cpu() for act in self.activations[layer]]
-
-        # Move gradients to CPU
-        for layer in self.gradients:
-            self.gradients[layer] = [grad.cpu() for grad in self.gradients[layer]]
 
         for handle in self.handles:
             handle.remove()

@@ -12,14 +12,19 @@ from src.utils.count import count_parameters
 from src.model.generate import get_output
 from src.func.load import load_config
 from src.config.prune_config import PruneConfig
+from src.config.prune_ft_config import PruneFTConfig
+from src.config.prune_eval_config import PruneEvalConfig
+from src.config.prune_ft_method import PruneFTMethod
 from src.eval.simple import SimpleEvaluator
 from argparse import ArgumentParser
 from logging import getLogger
 from datetime import datetime
 from src.config.prune_method import PruneMethod
+from transformers import set_seed
+
 
 logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s | %(name)s | %(levelname)s -> %(message)s"
+    level=logging.INFO, format="%(asctime)s | %(name)s | %(levelname)s -> %(message)s"
 )
 
 logger = getLogger()
@@ -134,6 +139,76 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--train_method",
+        type=str,
+        default=PruneFTMethod.MLP_ONLY,
+        help="Method to use for training. Currently, 'mlp_only', 'full' and 'layer_wise' are supported. (default: mlp_only)",
+    )
+
+    parser.add_argument(
+        "--train_dataset",
+        type=str,
+        default=None,
+        help="Hugging Face dataset to train the model.",
+    )
+
+    parser.add_argument(
+        "--train_dataset_size",
+        type=int,
+        default=20,
+        help="Size of the training dataset. (default: 20)",
+    )
+
+    parser.add_argument(
+        "--train_max_length",
+        type=int,
+        default=128,
+        help="Maximum length of training sequences.",
+    )
+
+    parser.add_argument(
+        "--train_batch_size",
+        type=int,
+        default=1,
+        help="Batch size for training.",
+    )
+
+    parser.add_argument(
+        "--train_epochs",
+        type=int,
+        default=0,
+        help="Number of epochs for training. (default: 0)",
+    )
+
+    parser.add_argument(
+        "--train_learning_rate",
+        type=float,
+        default=1e-5,
+        help="Learning rate for training. (default: 1e-5)",
+    )
+
+    parser.add_argument(
+        "--train_accumulation_steps",
+        type=int,
+        default=1,
+        help="Number of accumulation steps for training. (default: 1)",
+    )
+
+    parser.add_argument(
+        "--train_warmup_steps",
+        type=int,
+        default=10,
+        help="Number of warmup steps for training. (default: 10)",
+    )
+
+    parser.add_argument(
+        "--train_weight_decay",
+        type=float,
+        default=0.01,
+        help="Weight decay for training. (default: 0.01)",
+    )
+
+    parser.add_argument(
         "--eval_dataset",
         type=str,
         default=None,
@@ -152,6 +227,13 @@ if __name__ == "__main__":
         type=int,
         default=128,
         help="Maximum length of evaluation sequences.",
+    )
+
+    parser.add_argument(
+        "--eval_batch_size",
+        type=int,
+        default=1,
+        help="Batch size for evaluation.",
     )
 
     parser.add_argument(
@@ -182,11 +264,61 @@ if __name__ == "__main__":
         help="Use full precision for calculations.",
     )
 
+    parser.add_argument(
+        "--load_in_4bit",
+        action="store_true",
+        default=False,
+        help="Load the model in 4-bit precision.",
+    )
+
+    parser.add_argument(
+        "--load_in_8bit",
+        action="store_true",
+        default=False,
+        help="Load the model in 8-bit precision.",
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for reproducibility.",
+    )
+
     args = parser.parse_args()
 
     # Load the configuration.
     if args.config is None:
+        config_ft = None
+        config_eval = None
+
         # Load the configuration from the arguments. Filter out unexpected arguments.
+        if args.train_num_epochs > 0 or args.train_dataset is not None:
+            config_ft = PruneFTConfig(
+                method=args.train_method,
+                apply_chat_template=args.apply_chat_template,
+                cache_dir=args.cache,
+                train_dataset=args.train_dataset,
+                train_dataset_size=args.train_dataset_size,
+                train_max_length=args.train_max_length,
+                train_batch_size=args.train_batch_size,
+                train_epochs=args.train_epochs,
+                train_learning_rate=args.train_learning_rate,
+                train_accumulation_steps=args.train_accumulation_steps,
+                train_warmup_steps=args.train_warmup_steps,
+                train_weight_decay=args.train_weight_decay,
+            )
+
+        if args.eval_dataset is not None:
+            config_eval = PruneEvalConfig(
+                apply_chat_template=args.apply_chat_template,
+                cache_dir=args.cache,
+                eval_dataset=args.eval_dataset,
+                eval_dataset_size=args.eval_dataset_size,
+                eval_max_length=args.eval_max_length,
+                eval_batch_size=args.eval_batch_size,
+            )
+
         config = PruneConfig(
             model_name=args.model_name,
             dtype=args.dtype,
@@ -206,17 +338,20 @@ if __name__ == "__main__":
             target_size=args.target_size,
             use_full_precision=args.use_full_precision,
             gate_up_down_weight_weights=args.gate_up_down_weight_weights,
-            eval_dataset=args.eval_dataset,
-            eval_dataset_size=args.eval_dataset_size,
-            eval_max_length=args.eval_max_length,
+            training=config_ft,
+            eval=config_eval,
             quiet=args.quiet,
             log_dir=args.log_dir,
             stop_logging=args.stop_logging,
+            load_in_4bit=args.load_in_4bit,
+            load_in_8bit=args.load_in_8bit,
+            seed=args.seed,
         )
     else:
         # Load the configuration from the file.
         config = load_config(args.config)
 
+    set_seed(config.seed)
     os.makedirs(config.log_dir, exist_ok=True)
 
     logger.handlers = []
@@ -255,6 +390,8 @@ if __name__ == "__main__":
         dtype=dtype,
         cache_dir=config.cache_dir,
         device=config.device,
+        load_in_4bit=config.load_in_4bit,
+        load_in_8bit=config.load_in_8bit,
     )
 
     simple_evaluator = None
@@ -282,28 +419,12 @@ if __name__ == "__main__":
 
     pruned_model = update_model(
         model,
-        config.prune_percent,
-        prune_method=config.prune_method,
-        use_normalized_weights=config.use_normalized_weights,
-        use_layer_norm_tweaks=config.use_layer_norm_tweaks,
-        layer_norm_scale=config.layer_norm_scale,
-        device=config.device,
-        target_size=config.target_size,
-        use_full_precision=config.use_full_precision,
-        gate_up_down_weight_weights=config.gate_up_down_weight_weights,
-        deepcopy_model=config.grid_search is not None,
+        config,
         tokenizer=tokenizer,
-        eval_dataset=config.eval_dataset,
-        eval_max_length=config.eval_max_length,
-        use_chat_template=config.apply_chat_template,
     )
 
     parameters_after = count_parameters(pruned_model)
     reduction = (parameters_before - parameters_after) / parameters_before * 100
-
-    logger.info(
-        f"Model pruned successfully. Parameters before: {parameters_before}, Parameters after: {parameters_after}, Reduction: {reduction:.2f}%."
-    )
 
     # if config.eval_dataset is None:
     simple_evaluator.pruned_model = pruned_model
@@ -312,6 +433,10 @@ if __name__ == "__main__":
 
     if config.print_summary:
         logger.info(f"Model summary after pruning:\n{pruned_model}")
+
+    logger.info(
+        f"Model pruned successfully. Parameters before: {parameters_before}, Parameters after: {parameters_after}, Reduction: {reduction:.2f}%."
+    )
 
     if config.test_only:
         logger.info("Test completed successfully.")

@@ -87,9 +87,26 @@ It is recommended to store your configuration files in the `configs` directory f
 - `--test_only`: Run the test only. Do not save the model (default: `False`).
 - `--print_summary`: Print the pruned model summary. (default: `False`)
 - `--quiet`: Do not print logs.
-- `--eval_dataset`: Hugging Face dataset to evaluate the model. *WIP*
-- `--eval_dataset_size`: Size of the evaluation dataset. (default: `20`) *WIP*
+- `--train_method`: Supported methods:
+  - `mlp_only` - train only pruned MLPs
+  - `full` - train the full model
+  - `layer_wise` - train the model layer by layer to match the original model MLPs distribution (not supported yet)
+(default: `mlp_only`)
+- `--train_dataset`: Hugging Face dataset to train the model.
+- `--train_dataset_size`: Size of the training dataset. (default: `20`)
+- `--train_max_length`: Maximum length of the training sequence. (default: `128`)
+- `--train_batch_size`: Batch size for training. (default: `1`)
+- `--train_epochs`: Number of epochs to train the model. `train_dataset` is required. (default: `0` - no training)
+- `--train_learning_rate`: Learning rate for training. (default: `1e-5`)
+- `--train_warmup_steps`: Number of warmup steps for training. (default: `10`)
+- `--train_weight_decay`: Weight decay for training. (default: `0.01`)
+- `--train_accumulation_steps`: Number of accumulation steps for training. (default: `1`)
+- `--eval_dataset`: Hugging Face dataset to evaluate the model.
+- `--eval_dataset_size`: Size of the evaluation dataset. (default: `20`)
 - `--eval_max_length`: Maximum length of the evaluation sequence. (default: `128`)
+- `--eval_batch_size`: Batch size for evaluation. (default: `1`)
+- `--load_in_4bit`: Load the model in 4-bit mode. (default: `False`)
+- `--load_in_8bit`: Load the model in 8-bit mode. (default: `False`)
 
 ## AutoML 
 *WIP*

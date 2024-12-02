@@ -1,16 +1,20 @@
 import torch
+import numpy as np
+
 from torch import nn
 from typing import Optional
 from tqdm import tqdm
 
 from src.func.importance import (
     get_importance,
-    get_adjusted_importance,
     get_adjusted_importance_2,
     get_adjusted_importance_2_with_gradients,
 )
+
+from method.mkp.adjusted import get_importance as get_adjusted_importance
 from src.func.normalize import normalize_weight
 from src.config.prune_method import PruneMethod
+from src.config.method_config import MethodConfig
 
 # Methods to prune the model using Pere Martra's method with Mariusz Kurman's modification.
 
@@ -27,8 +31,9 @@ def prune_neuron_pairs(
     use_full_precision: bool = False,
     target_size: Optional[int] = None,
     gate_up_down_t_weight_weights: Optional[list] = [1.0, 1.0],
-    activations: Optional[list] = None,
-    gradients: Optional[list] = None,
+    activations: Optional[np.ndarray] = None,
+    gradients: Optional[np.ndarray] = None,
+    parameters: Optional[MethodConfig] = None,
 ) -> tuple[nn.Linear, nn.Linear, nn.Linear, int]:
     """
     Reduces the dimensions of the **gate_proj**,**up_proj**, **down_proj**
@@ -54,6 +59,7 @@ def prune_neuron_pairs(
     # Extract the weights from the MLP layers
     #  these weights are used to calculate each neuron's
     #  importance score in the next step.
+
     if use_full_precision:
         gate_weight = mlp.gate_proj.weight.data.float()
         up_weight = mlp.up_proj.weight.data.float()
@@ -74,6 +80,7 @@ def prune_neuron_pairs(
             up_weight,
             down_weight.t().contiguous(),
             weights=gate_up_down_t_weight_weights,
+            parameters=parameters,
         )
     elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED:
         importance_scores = get_adjusted_importance(
@@ -81,6 +88,7 @@ def prune_neuron_pairs(
             up_weight,
             down_weight.t().contiguous(),
             weights=gate_up_down_t_weight_weights,
+            parameters=parameters,
         )
     elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2:
         importance_scores = get_adjusted_importance_2(
@@ -88,6 +96,7 @@ def prune_neuron_pairs(
             up_weight,
             down_weight.t().contiguous(),
             weights=gate_up_down_t_weight_weights,
+            parameters=parameters,
         )
     elif prune_method == PruneMethod.MK_PRUNE_ADJUSTED_2_WITH_GRADIENTS:
         importance_scores = get_adjusted_importance_2_with_gradients(
@@ -97,6 +106,7 @@ def prune_neuron_pairs(
             weights=gate_up_down_t_weight_weights,
             activations=activations,
             gradients=gradients,
+            parameters=parameters,
         )
     else:
         raise ValueError(f"Unknown prune method: {prune_method}")
