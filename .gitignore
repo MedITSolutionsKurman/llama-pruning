@@ -7,3 +7,4 @@ venv
 prune*/
 logs/*
 configs/*
+results/*

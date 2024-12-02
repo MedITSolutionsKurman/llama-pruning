@@ -55,7 +55,7 @@ or use CLI:
 python src/main.py --model_name <model_name> --prune_percent <prune_percent> --dtype <dtype> --cache_dir <cache_dir> --device <device> --output <output> --prompt <prompt> --max_new_tokens <max_new_tokens> [--apply_chat_template]
 ```
 
-You can find an example `config.yaml` in the `examples` directory.
+You can find example configurations and usage scripts in the `examples` directory.
 It is recommended to store your configuration files in the `configs` directory for better organization.
 
 ## Arguments
@@ -71,18 +71,42 @@ It is recommended to store your configuration files in the `configs` directory f
 - `--prompt`: Prompt to generate the output (default: `What is the capital of France?`).
 - `--max_new_tokens`: Maximum number of tokens to generate (default: `50`).
 - `--target_size`: Target size for the MLPs intermediate layer. (`prune_percent` will be ignored).
-- `--prune_method`: Method to use for pruning. Currently, only "mk_prune" (alias: "mk") and "mk_prune_adjusted" (alias: "mka") are supported. (default: `mk_prune`)
+- `--prune_method`: Method to use for pruning. Currently, the following methods are supported:
+  - "mk_prune" (alias: "mk")
+  - "mk_prune_adjusted" (alias: "mka")
+  - "mk_prune_adjusted_2" (alias: "mka2")
+  - "mk_prune_adjusted_2_with_gradients" (alias: "mka2g") (requires eval_dataset to compute gradients)
+  (default: `mk_prune`)
 - `--use_normalized_weights`: Use normalized weights to calculate the final weights. (default: `False`)
 - `--use_layer_norm_tweaks`: Apply layer normalization changes to account for the impact of pruned neurons. (default: `False`)
 - `--layer_norm_scale`: Layer normalization scale. Only used if use_layer_norm_tweaks is True. (default: `4.0`)
-- `--gate_up_weight_weights`: Weights for the gate and up weights. (default: [1.0, 1.0])
+- `--gate_up_down_weight_weights`: Weights for the gate, up and down weights. (default: `[1.0, 1.0, 1.0]`)
+- `--use_full_precision`: Use full precision for calculations. (default: `False`)
 - `--log_dir`: Directory to save the logs. (default: `logs`)
 - `--stop_logging`: Stop logging to the file. (default: `False`)
 - `--test_only`: Run the test only. Do not save the model (default: `False`).
 - `--print_summary`: Print the pruned model summary. (default: `False`)
 - `--quiet`: Do not print logs.
-- `--eval_dataset`: Hugging Face dataset to evaluate the model. *WIP*
-- `--eval_dataset_size`: Size of the evaluation dataset. (default: 20) *WIP*
+- `--train_method`: Supported methods:
+  - `mlp_only` - train only pruned MLPs
+  - `full` - train the full model
+  - `layer_wise` - train the model layer by layer to match the original model MLPs distribution (not supported yet)
+(default: `mlp_only`)
+- `--train_dataset`: Hugging Face dataset to train the model.
+- `--train_dataset_size`: Size of the training dataset. (default: `20`)
+- `--train_max_length`: Maximum length of the training sequence. (default: `128`)
+- `--train_batch_size`: Batch size for training. (default: `1`)
+- `--train_epochs`: Number of epochs to train the model. `train_dataset` is required. (default: `0` - no training)
+- `--train_learning_rate`: Learning rate for training. (default: `1e-5`)
+- `--train_warmup_steps`: Number of warmup steps for training. (default: `10`)
+- `--train_weight_decay`: Weight decay for training. (default: `0.01`)
+- `--train_accumulation_steps`: Number of accumulation steps for training. (default: `1`)
+- `--eval_dataset`: Hugging Face dataset to evaluate the model.
+- `--eval_dataset_size`: Size of the evaluation dataset. (default: `20`)
+- `--eval_max_length`: Maximum length of the evaluation sequence. (default: `128`)
+- `--eval_batch_size`: Batch size for evaluation. (default: `1`)
+- `--load_in_4bit`: Load the model in 4-bit mode. (default: `False`)
+- `--load_in_8bit`: Load the model in 8-bit mode. (default: `False`)
 
 ## AutoML 
 *WIP*
@@ -104,7 +128,7 @@ prune_grid:
   use_layer_norm_tweaks_list: [true, false]
   layer_norm_scale_list: [2.0, 4.0]
   target_size_list: [null, 512]
-  gate_up_weight_weights_list: [[1.0, 1.0], [0.5, 0.5]]
+  gate_up_down_weight_weights_list: [[1.0, 1.0, 1.0], [0.5, 0.5, 0.5]]
 ```
 
 ### Running the Grid Search

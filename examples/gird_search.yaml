@@ -5,7 +5,7 @@ cache_dir: null
 device: "cuda"
 output: "results/pruned_model"
 apply_chat_template: true
-prompt: "What is the capital of France?"
+prompt: "What is the capital of Italy?"
 max_new_tokens: 50
 target_size: null
 log_dir: "logs"
@@ -14,7 +14,8 @@ prune_method: "mk"
 use_normalized_weights: false
 use_layer_norm_tweaks: false
 layer_norm_scale: 4.0
-gate_up_weight_weights: [1.0, 1.0]
+gate_up_down_weight_weights: [1.0, 1.0, 1.0]
+use_full_precision: false
 print_summary: false
 quiet: false
 stop_logging: false
@@ -27,4 +28,4 @@ grid_search:
   use_layer_norm_tweaks_list: [true, false]
   layer_norm_scale_list: [2.0, 4.0]
   target_size_list: [null, 512]
-  gate_up_weight_weights_list: [[1.0, 1.0], [0.4, 0.6]]
+  gate_up_down_weight_weights_list: [[1.0, 1.0, 1.0], [0.3, 0.4, 0.3]]

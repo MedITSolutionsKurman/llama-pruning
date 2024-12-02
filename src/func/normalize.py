@@ -1,4 +1,5 @@
 import torch
+from typing import List
 
 
 # Normalize Weight:
@@ -48,3 +49,19 @@ def normalize_weight(
     weight *= torch.max(norm_, (norm_ + source.norm(dim=dim, keepdim=True)) / 2)
 
     return weight
+
+def normalize_user_weights(weights: List[float]) -> List[float]:
+    """
+    Normalize the user weights to sum to 1.
+
+    Args:
+    - weights: User weights for each layer.
+
+    Returns:
+    - weights: Normalized user weights.
+    """
+    
+    weights_sum = sum(weights)
+    weights = [x / weights_sum for x in weights]
+
+    return weights

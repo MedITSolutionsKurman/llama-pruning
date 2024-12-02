@@ -5,7 +5,7 @@ cache_dir: null
 device: "cuda"
 output: "results/pruned_model"
 apply_chat_template: true
-prompt: "What is the capital of France?"
+prompt: "What is the capital of the United States?"
 max_new_tokens: 50
 target_size: null
 log_dir: "logs"
@@ -14,7 +14,8 @@ prune_method: "mka"
 use_normalized_weights: false
 use_layer_norm_tweaks: true
 layer_norm_scale: 5.0
-gate_up_weight_weights: [0.3, 0.7]
+gate_up_down_weight_weights: [0.3, 0.5, 0.2]
+use_full_precision: false
 print_summary: false
 quiet: true
 stop_logging: true
